@@ -14,6 +14,7 @@ jobs:
         with:
           github-token: ${{ secrets.MY_GLOBAL_PAT }}
           script: |
+            // 保留记录条数
             const keepMinimumRuns = 10;
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -58,7 +59,7 @@ jobs:
                   break;
                 }
 
-                // 默认取 10 条之后的所有旧记录
+                // 取设置条数之后的所有旧记录
                 const runsToDelete = runs.slice(keepMinimumRuns);
 
                 /* ==============================================================

@@ -1,4 +1,4 @@
-name: Global Workflow Runs Cleaner
+name: '清理运行记录'  # Global Workflow Runs Cleaner
 
 on:
   schedule:

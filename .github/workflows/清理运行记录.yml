@@ -15,7 +15,7 @@ jobs:
           github-token: ${{ secrets.MY_GLOBAL_PAT }}
           script: |
             // 保留记录条数
-            const keepMinimumRuns = 10;
+            const keepMinimumRuns = 5;
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
             /* ==============================================================

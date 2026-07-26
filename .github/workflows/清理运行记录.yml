@@ -1,0 +1,93 @@
+name: Global Workflow Runs Cleaner
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 每天凌晨自动清理所有仓库
+  workflow_dispatch:      # 支持手动一键触发清理
+
+jobs:
+  clean-all:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old runs across all repos
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.MY_GLOBAL_PAT }}
+          script: |
+            const keepMinimumRuns = 10;
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            /* ==============================================================
+             * 【未来恢复 3 天限制】：取消下面 2 行注释即可
+             * ============================================================== */
+            // const daysToKeep = 3;
+            // const cutoff = Date.now() - (daysToKeep * 24 * 60 * 60 * 1000);
+
+            // 1. 获取当前账号下所有的个人仓库
+            const repos = await github.paginate(github.rest.repos.listForAuthenticatedUser, {
+              visibility: 'all',
+              affiliation: 'owner',
+              per_page: 100
+            });
+
+            console.log(`获取到 ${repos.length} 个仓库，开始依次检查与清理...`);
+
+            for (const repo of repos) {
+              const owner = repo.owner.login;
+              const repoName = repo.name;
+              console.log(`\n🔍 正在检查仓库: ${owner}/${repoName}`);
+
+              let deletedInRepo = 0;
+
+              while (true) {
+                let response;
+                try {
+                  response = await github.rest.actions.listWorkflowRunsForRepo({
+                    owner: owner,
+                    repo: repoName,
+                    per_page: 100,
+                    page: 1
+                  });
+                } catch (err) {
+                  // 如果该仓库没开启 Actions 或权限不足，直接跳过
+                  break;
+                }
+
+                const runs = response.data.workflow_runs;
+                if (!runs || runs.length <= keepMinimumRuns) {
+                  break;
+                }
+
+                // 默认取 10 条之后的所有旧记录
+                const runsToDelete = runs.slice(keepMinimumRuns);
+
+                /* ==============================================================
+                 * 【未来恢复 3 天限制】：取消下面 2 行注释，并将上面这行注释掉
+                 * ============================================================== */
+                // const runsToDelete = runs.slice(keepMinimumRuns).filter(run => new Date(run.created_at).getTime() < cutoff);
+                // if (runsToDelete.length === 0) break;
+
+                for (const run of runsToDelete) {
+                  try {
+                    await github.rest.actions.deleteWorkflowRun({
+                      owner: owner,
+                      repo: repoName,
+                      run_id: run.id
+                    });
+                    deletedInRepo++;
+                    console.log(`  └─ [${deletedInRepo}] 已删除 ID: ${run.id} (${run.name})`);
+                    await sleep(200);
+                  } catch (err) {
+                    console.error(`  └─ 删除失败 ${run.id}:`, err.message);
+                  }
+                }
+              }
+
+              if (deletedInRepo > 0) {
+                console.log(`✅ 仓库 ${repoName} 清理完成，共删除 ${deletedInRepo} 条记录。`);
+              } else {
+                console.log(`✨ 仓库 ${repoName} 记录无需清理（<= ${keepMinimumRuns} 条）。`);
+              }
+            }
+
+            console.log('\n🎉 所有仓库的历史记录清理完成！');

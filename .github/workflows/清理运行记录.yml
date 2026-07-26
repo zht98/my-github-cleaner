@@ -38,6 +38,29 @@ jobs:
               const repoName = repo.name;
               console.log(`\n🔍 正在检查仓库: ${owner}/${repoName}`);
 
+              // --------------------------------------------------------------
+              // 【新增】：清理 Actions 缓存（释放 0.5 GB Storage 额度的关键）
+              // --------------------------------------------------------------
+              try {
+                const caches = await github.rest.actions.getActionsCacheList({
+                  owner: owner,
+                  repo: repoName,
+                });
+                if (caches.data.actions_caches && caches.data.actions_caches.length > 0) {
+                  console.log(`  📦 找到 ${caches.data.actions_caches.length} 个缓存，开始清理...`);
+                  for (const cache of caches.data.actions_caches) {
+                    await github.rest.actions.deleteActionsCacheById({
+                      owner: owner,
+                      repo: repoName,
+                      cache_id: cache.id,
+                    });
+                  }
+                  console.log(`  ✅ 缓存清理完毕！`);
+                }
+              } catch (err) {
+                // 部分仓库可能无缓存或未开启 Actions 权限，直接跳过
+              }
+
               let deletedInRepo = 0;
 
               while (true) {
